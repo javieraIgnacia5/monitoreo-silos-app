@@ -12,28 +12,38 @@ enum class SiloStatus(val label: String) {
     CRITICAL("Crítico")
 }
 
+enum class MovementType(val label: String) {
+    INGRESO("Ingreso"),
+    SALIDA("Salida")
+}
+
 data class Silo(
     val id: String,
-    val farmId: String,
     val name: String,
-    val capacityKg: Int,
-    val currentKg: Int,
+    val grain: String,
+    val farm: String,
+    val capacityTon: Int,
+    val currentTon: Double,
     val updatedAt: String
 ) {
     val percentage: Int
-        get() = if (capacityKg == 0) 0 else (currentKg * 100) / capacityKg
+        get() = if (capacityTon == 0) 0 else ((currentTon * 100) / capacityTon).toInt()
 
     val status: SiloStatus
         get() = when {
-            percentage <= 15 -> SiloStatus.CRITICAL
-            percentage <= 30 -> SiloStatus.WARNING
+            percentage <= 20 -> SiloStatus.CRITICAL
+            percentage <= 50 -> SiloStatus.WARNING
             else -> SiloStatus.NORMAL
         }
 }
 
-data class Farm(
-    val id: String,
-    val name: String,
-    val location: String,
-    val silos: List<Silo>
+data class Movement(
+    val id: Long,
+    val siloId: String,
+    val siloName: String,
+    val grain: String,
+    val type: MovementType,
+    val tons: Double,
+    val date: String,
+    val notes: String
 )

@@ -7,26 +7,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
+/** Pantalla provisoria. Cada persona la reemplaza por su pantalla real. */
 @Composable
-fun LoginScreen(onLogin: () -> Unit) {
+fun PlaceholderScreen(
+    title: String,
+    actions: List<Pair<String, () -> Unit>> = emptyList()
+) {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Monitoreo de Silos", style = MaterialTheme.typography.displaySmall)
+        Text(title, style = MaterialTheme.typography.headlineMedium)
+        Text("(pantalla en construcción)", style = MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(24.dp))
-        Button(onClick = onLogin) { Text("Ingresar") }
+        actions.forEach { (label, onClick) ->
+            Button(
+                onClick = onClick,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(label) }
+            Spacer(Modifier.height(8.dp))
+        }
     }
-}
-
-@Composable
-fun AlertsScreen() = CenterText("Alertas (próximamente)")
-
-@Composable
-fun SummaryScreen() = CenterText("Resumen jefatura (próximamente)")
-
-@Composable
-private fun CenterText(text: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(text) }
 }

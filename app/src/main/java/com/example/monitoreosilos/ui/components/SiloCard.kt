@@ -1,13 +1,17 @@
 package com.example.monitoreosilos.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Grain
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -16,6 +20,7 @@ import com.example.monitoreosilos.domain.model.SiloStatus
 import com.example.monitoreosilos.ui.theme.StatusCritical
 import com.example.monitoreosilos.ui.theme.StatusNormal
 import com.example.monitoreosilos.ui.theme.StatusWarning
+import com.example.monitoreosilos.util.formatTon
 
 fun SiloStatus.color(): Color = when (this) {
     SiloStatus.NORMAL -> StatusNormal
@@ -29,70 +34,48 @@ fun SiloCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
 ) {
-    var started by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { started = true }
-
-    val progress by animateFloatAsState(
-        targetValue = if (started) silo.percentage / 100f else 0f,
-        animationSpec = tween(durationMillis = 900),
-        label = "silo-progress"
-    )
-
     Card(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
-        Column(Modifier.padding(16.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        silo.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        "${silo.currentKg} / ${silo.capacityKg} kg",
-                        style = MaterialTheme.typography.bodySmall
-                    )
+        Row(
+            Modifier.padding(10.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SiloThumb(silo.id, Modifier.width(72.dp).height(92.dp))
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(silo.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(silo.grain, style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(width = 34.dp, height = 44.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(silo.status.color()),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Filled.Grain, contentDescription = silo.status.label, tint = Color.White)
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            "${silo.percentage}%",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "${silo.currentTon.formatTon()} / ${silo.capacityTon} ton",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
-                Text(
-                    "${silo.percentage}%",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = silo.status.color()
-                )
             }
-            Spacer(Modifier.height(10.dp))
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxWidth().height(8.dp),
-                color = silo.status.color(),
-                trackColor = MaterialTheme.colorScheme.outline
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    silo.status.label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = silo.status.color(),
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    "Actualizado: ${silo.updatedAt}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
         }
     }
 }
