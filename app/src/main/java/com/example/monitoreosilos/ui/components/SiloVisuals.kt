@@ -31,7 +31,10 @@ fun SiloThumb(siloId: String, modifier: Modifier = Modifier) {
         "S1" -> R.drawable.silo_thumb_1
         "S2" -> R.drawable.silo_thumb_2
         "S3" -> R.drawable.silo_thumb_3
-        else -> R.drawable.silo_thumb_4
+        "S4" -> R.drawable.silo_thumb_4
+        "S5" -> R.drawable.silo_thumb_5
+
+        else -> R.drawable.silo_thumb_1
     }
     Image(
         painter = painterResource(res),
@@ -42,15 +45,29 @@ fun SiloThumb(siloId: String, modifier: Modifier = Modifier) {
 }
 
 /** Foto grande de la parte superior del detalle. */
+
 @Composable
-fun SiloHeaderImage(modifier: Modifier = Modifier) {
+fun SiloHeaderImage(
+    siloId: String,
+    modifier: Modifier = Modifier
+) {
+    val imagen = when (siloId) {
+        "S1" -> R.drawable.silo_thumb_1
+        "S2" -> R.drawable.silo_thumb_2
+        "S3" -> R.drawable.silo_thumb_3
+        "S4" -> R.drawable.silo_thumb_4
+        "S5" -> R.drawable.silo_thumb_5
+        else -> R.drawable.silo_thumb_1
+    }
+
     Image(
-        painter = painterResource(R.drawable.silo_header),
-        contentDescription = "Foto del silo",
+        painter = painterResource(id = imagen),
+        contentDescription = "Fotografía del silo $siloId",
         contentScale = ContentScale.Crop,
         modifier = modifier.clip(RoundedCornerShape(20.dp))
     )
 }
+
 
 /** Círculo de porcentaje que se llena con animación. */
 @Composable

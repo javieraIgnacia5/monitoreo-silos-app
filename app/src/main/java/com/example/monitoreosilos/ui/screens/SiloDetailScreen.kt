@@ -79,7 +79,12 @@ fun SiloDetailScreen(
         ) {
             // Foto con el círculo montado encima
             Box(Modifier.fillMaxWidth().height(250.dp)) {
-                SiloHeaderImage(Modifier.fillMaxWidth().height(150.dp))
+
+                SiloHeaderImage(
+                    siloId = s.id,
+                    modifier = Modifier.fillMaxWidth().height(150.dp)
+                )
+
                 Box(
                     Modifier
                         .align(Alignment.BottomCenter)
