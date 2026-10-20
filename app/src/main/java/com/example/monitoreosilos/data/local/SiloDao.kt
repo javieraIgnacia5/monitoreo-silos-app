@@ -24,4 +24,9 @@ interface SiloDao {
 
     @Query("DELETE FROM silos WHERE id = :siloId")
     suspend fun eliminarSilo(siloId: String)
+
+
+    @Query("SELECT COUNT(*) FROM silos")
+    suspend fun contarSilos(): Int
+
 }
