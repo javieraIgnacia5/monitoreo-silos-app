@@ -139,6 +139,101 @@ object SiloRepository {
         Log.d("SiloRepository", "Nuevo silo guardado: ${nuevoSilo.name}")
     }
 
+    // ---------- Edición de silos ----------
+
+    suspend fun updateSilo(
+        siloId: String,
+        name: String,
+        grain: String,
+        farm: String,
+        capacity: Int
+    ) = movementMutex.withLock {
+
+        check(::database.isInitialized && _isReady.value) {
+            "La base de datos todavía no está lista"
+        }
+
+        require(name.isNotBlank()) {
+            "Debes ingresar el nombre del silo"
+        }
+
+        require(grain.isNotBlank() && farm.isNotBlank()) {
+            "Debes completar el grano y el predio"
+        }
+
+        require(capacity > 0) {
+            "La capacidad debe ser mayor que cero"
+        }
+
+        val siloExistente = database.siloDao()
+            .obtenerSiloPorId(siloId)
+            ?.toDomain()
+            ?: throw IllegalArgumentException(
+                "No se encontró el silo seleccionado"
+            )
+
+        require(capacity >= siloExistente.currentTon) {
+            "La capacidad no puede ser menor que las toneladas almacenadas"
+        }
+
+        val siloActualizado = siloExistente.copy(
+            name = name.trim(),
+            grain = grain.trim(),
+            farm = farm.trim(),
+            capacityTon = capacity,
+            updatedAt = DateUtils.now()
+        )
+
+        database.siloDao().guardarSilo(
+            siloActualizado.toEntity()
+        )
+
+        cargarDatosDesdeRoom()
+
+        Log.d(
+            "SiloRepository",
+            "Silo actualizado correctamente: ${siloActualizado.name}"
+        )
+    }
+
+    // ---------- Eliminación segura de silos ----------
+
+    suspend fun deleteSilo(siloId: String) = movementMutex.withLock {
+
+        check(::database.isInitialized && _isReady.value) {
+            "La base de datos todavía no está lista"
+        }
+
+        val silo = database.siloDao()
+            .obtenerSiloPorId(siloId)
+            ?.toDomain()
+            ?: throw IllegalArgumentException(
+                "No se encontró el silo seleccionado"
+            )
+
+        require(silo.currentTon == 0.0) {
+            "No puedes eliminar un silo que contiene grano. Primero debe estar vacío."
+        }
+
+        val tieneMovimientos = database.movementDao()
+            .obtenerMovimientos()
+            .first()
+            .any { it.siloId == siloId }
+
+        require(!tieneMovimientos) {
+            "No puedes eliminar un silo que tiene movimientos registrados en el historial."
+        }
+
+        database.siloDao().eliminarSilo(siloId)
+
+        cargarDatosDesdeRoom()
+
+        Log.d(
+            "SiloRepository",
+            "Silo eliminado correctamente: ${silo.name}"
+        )
+    }
+
 
     // ---------- Registro de movimientos ----------
 
