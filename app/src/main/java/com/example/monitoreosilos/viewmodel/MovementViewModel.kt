@@ -10,6 +10,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
+
+
 data class MovementUiState(
     val siloId: String = "",
     val type: MovementType = MovementType.INGRESO,
@@ -66,29 +70,68 @@ class MovementViewModel : ViewModel() {
 
     fun onNotesChange(value: String) = _state.update { it.copy(notes = value) }
 
+
     fun onSubmit() {
         val s = _state.value
         val silo = SiloRepository.siloById(s.siloId)
+
         val siloError = MovementValidator.validateSilo(s.siloId)
-        val tonsError = MovementValidator.validateTons(s.tons, s.type, silo)
+        val tonsError = MovementValidator.validateTons(
+            s.tons,
+            s.type,
+            silo
+        )
         val dateError = MovementValidator.validateDate(s.date)
         val grainError = MovementValidator.validateGrain(s.grain)
-        val ok = listOf(siloError, tonsError, dateError, grainError).all { it == null }
-        if (ok) {
-            SiloRepository.registerMovement(
-                siloId = s.siloId,
-                type = s.type,
-                tons = s.tons.trim().replace(',', '.').toDouble(),
-                date = "${s.date.trim()} - ${DateUtils.time()}",
-                notes = s.notes.trim(),
-                grain = s.grain
-            )
-        }
+
+        val ok = listOf(
+            siloError,
+            tonsError,
+            dateError,
+            grainError
+        ).all { it == null }
+
         _state.update {
             it.copy(
-                siloError = siloError, tonsError = tonsError,
-                dateError = dateError, grainError = grainError, success = ok
+                siloError = siloError,
+                tonsError = tonsError,
+                dateError = dateError,
+                grainError = grainError,
+                success = false
             )
         }
+
+        if (!ok) return
+
+        viewModelScope.launch {
+            try {
+                SiloRepository.registerMovement(
+                    siloId = s.siloId,
+                    type = s.type,
+                    tons = s.tons.trim()
+                        .replace(',', '.')
+                        .toDouble(),
+                    date = "${s.date.trim()} - ${DateUtils.time()}",
+                    notes = s.notes.trim(),
+                    grain = s.grain
+                )
+
+                _state.update {
+                    it.copy(success = true)
+                }
+
+            } catch (e: Exception) {
+                android.util.Log.e(
+                    "MovementViewModel",
+                    "Error al registrar movimiento",
+                    e
+                )
+
+                _state.update {
+                    it.copy(success = false)
+                }
+            }
+        }
     }
+
 }
