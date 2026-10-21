@@ -24,7 +24,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
-import org.json.JSONObject
 
 object SiloRepository {
 
@@ -35,8 +34,12 @@ object SiloRepository {
         SupervisorJob() + Dispatchers.IO
     )
 
-    // Evita que dos movimientos se registren al mismo tiempo.
+    // Evita registrar dos movimientos simultáneamente.
     private val movementMutex = Mutex()
+
+    // Indica si Room terminó de cargar correctamente.
+    private val _isReady = MutableStateFlow(false)
+    val isReady: StateFlow<Boolean> = _isReady.asStateFlow()
 
     private val _silos = MutableStateFlow<List<Silo>>(emptyList())
     val silos: StateFlow<List<Silo>> = _silos.asStateFlow()
@@ -44,7 +47,8 @@ object SiloRepository {
     private val _movements = MutableStateFlow<List<Movement>>(emptyList())
     val movements: StateFlow<List<Movement>> = _movements.asStateFlow()
 
-    /** Se llama una sola vez desde MainActivity. */
+    // ---------- Inicialización ----------
+
     fun init(context: Context) {
         if (::prefs.isInitialized) return
 
@@ -53,19 +57,16 @@ object SiloRepository {
             Context.MODE_PRIVATE
         )
 
-        database = SiloDatabase.getDatabase(context)
-
-        // Datos temporales mientras Room termina de cargar.
-        _silos.value = loadSilos() ?: SampleData.silos
-        _movements.value =
-            loadMovements() ?: SampleData.initialMovements()
+        database = SiloDatabase.getDatabase(
+            context.applicationContext
+        )
 
         repositoryScope.launch {
             try {
-                // Proteger la migración y la carga inicial.
                 movementMutex.withLock {
                     migrarDatosARoom()
                     cargarDatosDesdeRoom()
+                    _isReady.value = true
                 }
 
                 Log.d(
@@ -74,6 +75,8 @@ object SiloRepository {
                 )
 
             } catch (e: Exception) {
+                _isReady.value = false
+
                 Log.e(
                     "SiloRepository",
                     "Error al cargar los datos desde Room",
@@ -83,11 +86,61 @@ object SiloRepository {
         }
     }
 
+    // ---------- Consulta de silos ----------
+
     fun siloById(id: String): Silo? {
-        return _silos.value.firstOrNull { it.id == id }
+        return _silos.value.firstOrNull {
+            it.id == id
+        }
+
     }
 
-    // ---------- Registro de movimientos en Room ----------
+    suspend fun addSilo(
+        name: String,
+        grain: String,
+        farm: String,
+        capacity: Int,
+        current: Double
+    ) = movementMutex.withLock {
+
+        check(::database.isInitialized && _isReady.value) {
+            "La base de datos todavía no está lista"
+        }
+
+        require(name.isNotBlank()) {
+            "Debes ingresar el nombre del silo"
+        }
+
+        require(grain.isNotBlank() && farm.isNotBlank()) {
+            "Debes completar el grano y el predio"
+        }
+
+        require(capacity > 0 && current.isFinite() &&
+                current >= 0 && current <= capacity) {
+            "La cantidad debe estar entre cero y la capacidad máxima"
+        }
+
+        val nuevoId = java.util.UUID.randomUUID().toString()
+
+        val nuevoSilo = Silo(
+            id = nuevoId,
+            name = name.trim(),
+            grain = grain.trim(),
+            farm = farm.trim(),
+            capacityTon = capacity,
+            currentTon = current,
+            updatedAt = DateUtils.now()
+        )
+
+        database.siloDao().guardarSilo(nuevoSilo.toEntity())
+
+        cargarDatosDesdeRoom()
+
+        Log.d("SiloRepository", "Nuevo silo guardado: ${nuevoSilo.name}")
+    }
+
+
+    // ---------- Registro de movimientos ----------
 
     suspend fun registerMovement(
         siloId: String,
@@ -98,15 +151,18 @@ object SiloRepository {
         grain: String
     ) = movementMutex.withLock {
 
+        check(::database.isInitialized) {
+            "La base de datos todavía no está inicializada"
+        }
+
         require(tons.isFinite() && tons > 0) {
             "La cantidad debe ser mayor que cero"
         }
 
-        // Esperar a que la migración esté completada.
+        // Completar la migración si todavía está pendiente.
         migrarDatosARoom()
 
-        // La lectura, el cálculo y el guardado se hacen
-        // dentro de una única transacción.
+        // Leer, calcular y guardar en una sola transacción.
         database.withTransaction {
 
             val siloEntity = database.siloDao()
@@ -117,55 +173,66 @@ object SiloRepository {
 
             val silo = siloEntity.toDomain()
 
-            val newLevel = when (type) {
-                MovementType.INGRESO -> silo.currentTon + tons
-                MovementType.SALIDA -> silo.currentTon - tons
+            val nuevoNivel = when (type) {
+                MovementType.INGRESO ->
+                    silo.currentTon + tons
+
+                MovementType.SALIDA ->
+                    silo.currentTon - tons
             }
 
             require(
-                newLevel.isFinite() &&
-                        newLevel >= 0 &&
-                        newLevel <= silo.capacityTon
+                nuevoNivel.isFinite() &&
+                        nuevoNivel >= 0 &&
+                        nuevoNivel <= silo.capacityTon
             ) {
                 "La cantidad supera los límites del silo"
             }
 
             val siloActualizado = silo.copy(
-                currentTon = newLevel,
+                currentTon = nuevoNivel,
                 updatedAt = DateUtils.now()
             )
 
-            val movimientosActuales = database.movementDao()
-                .obtenerMovimientos()
-                .first()
+            val movimientosActuales =
+                database.movementDao()
+                    .obtenerMovimientos()
+                    .first()
 
-            val nextId = (
-                    movimientosActuales.maxOfOrNull { it.id } ?: 0L
-                    ) + 1L
+            val ultimoId =
+                movimientosActuales.maxOfOrNull {
+                    it.id
+                } ?: 0L
+
+            check(ultimoId < Long.MAX_VALUE) {
+                "No se puede generar otro ID de movimiento"
+            }
+
+            val nuevoId = ultimoId + 1L
 
             val movimiento = Movement(
-                nextId,
-                silo.id,
-                silo.name,
-                grain,
-                type,
-                tons,
-                date,
-                notes
+                id = nuevoId,
+                siloId = silo.id,
+                siloName = silo.name,
+                grain = grain,
+                type = type,
+                tons = tons,
+                date = date,
+                notes = notes
             )
 
-            // Ambas operaciones se guardan juntas.
+            // Guardar el nivel actualizado del silo.
             database.siloDao().guardarSilo(
                 siloActualizado.toEntity()
             )
 
+            // Guardar el movimiento en el historial.
             database.movementDao().guardarMovimiento(
                 movimiento.toEntity()
             )
         }
 
-        // Actualizar las pantallas solamente después
-        // de confirmar el guardado.
+        // Actualizar las pantallas después de guardar.
         cargarDatosDesdeRoom()
 
         Log.d(
@@ -174,10 +241,11 @@ object SiloRepository {
         )
     }
 
-    // ---------- Datos anteriores en SharedPreferences ----------
+    // ---------- Lectura de datos antiguos ----------
 
     private fun loadSilos(): List<Silo>? {
-        val raw = prefs.getString("silos", null) ?: return null
+        val raw = prefs.getString("silos", null)
+            ?: return null
 
         return try {
             val arr = JSONArray(raw)
@@ -186,13 +254,13 @@ object SiloRepository {
                 val o = arr.getJSONObject(index)
 
                 Silo(
-                    o.getString("id"),
-                    o.getString("name"),
-                    o.getString("grain"),
-                    o.getString("farm"),
-                    o.getInt("capacity"),
-                    o.getDouble("current"),
-                    o.getString("updatedAt")
+                    id = o.getString("id"),
+                    name = o.getString("name"),
+                    grain = o.getString("grain"),
+                    farm = o.getString("farm"),
+                    capacityTon = o.getInt("capacity"),
+                    currentTon = o.getDouble("current"),
+                    updatedAt = o.getString("updatedAt")
                 )
             }
 
@@ -207,7 +275,8 @@ object SiloRepository {
     }
 
     private fun loadMovements(): List<Movement>? {
-        val raw = prefs.getString("movements", null) ?: return null
+        val raw = prefs.getString("movements", null)
+            ?: return null
 
         return try {
             val arr = JSONArray(raw)
@@ -216,14 +285,16 @@ object SiloRepository {
                 val o = arr.getJSONObject(index)
 
                 Movement(
-                    o.getLong("id"),
-                    o.getString("siloId"),
-                    o.getString("siloName"),
-                    o.getString("grain"),
-                    MovementType.valueOf(o.getString("type")),
-                    o.getDouble("tons"),
-                    o.getString("date"),
-                    o.getString("notes")
+                    id = o.getLong("id"),
+                    siloId = o.getString("siloId"),
+                    siloName = o.getString("siloName"),
+                    grain = o.getString("grain"),
+                    type = MovementType.valueOf(
+                        o.getString("type")
+                    ),
+                    tons = o.getDouble("tons"),
+                    date = o.getString("date"),
+                    notes = o.getString("notes")
                 )
             }
 
@@ -241,7 +312,12 @@ object SiloRepository {
 
     private suspend fun migrarDatosARoom() {
 
-        if (prefs.getBoolean("room_migration_completed", false)) {
+        if (
+            prefs.getBoolean(
+                "room_migration_completed",
+                false
+            )
+        ) {
             return
         }
 
@@ -249,7 +325,8 @@ object SiloRepository {
             loadSilos() ?: SampleData.silos
 
         val movimientosGuardados =
-            loadMovements() ?: SampleData.initialMovements()
+            loadMovements()
+                ?: SampleData.initialMovements()
 
         database.withTransaction {
 
@@ -259,17 +336,24 @@ object SiloRepository {
             if (cantidadSilos == 0) {
 
                 database.siloDao().guardarSilos(
-                    silosGuardados.map { it.toEntity() }
+                    silosGuardados.map {
+                        it.toEntity()
+                    }
                 )
 
                 database.movementDao().guardarMovimientos(
-                    movimientosGuardados.map { it.toEntity() }
+                    movimientosGuardados.map {
+                        it.toEntity()
+                    }
                 )
             }
         }
 
         val guardado = prefs.edit()
-            .putBoolean("room_migration_completed", true)
+            .putBoolean(
+                "room_migration_completed",
+                true
+            )
             .commit()
 
         if (!guardado) {
@@ -284,18 +368,23 @@ object SiloRepository {
         )
     }
 
-    // ---------- Lectura de datos desde Room ----------
+    // ---------- Carga de datos desde Room ----------
 
     private suspend fun cargarDatosDesdeRoom() {
 
         val silosGuardados = database.siloDao()
             .obtenerTodosLosSilos()
-            .map { it.toDomain() }
+            .map {
+                it.toDomain()
+            }
 
-        val movimientosGuardados = database.movementDao()
-            .obtenerMovimientos()
-            .first()
-            .map { it.toDomain() }
+        val movimientosGuardados =
+            database.movementDao()
+                .obtenerMovimientos()
+                .first()
+                .map {
+                    it.toDomain()
+                }
 
         _silos.value = silosGuardados
         _movements.value = movimientosGuardados

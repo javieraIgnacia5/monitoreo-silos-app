@@ -30,6 +30,8 @@ import com.example.monitoreosilos.ui.screens.RegisterScreen
 import com.example.monitoreosilos.ui.screens.SiloDetailScreen
 import com.example.monitoreosilos.ui.screens.SilosScreen
 import com.example.monitoreosilos.ui.screens.SplashScreen
+import com.example.monitoreosilos.ui.screens.AlertsScreen
+import com.example.monitoreosilos.ui.screens.AddSiloScreen
 
 object Routes {
     // Pantallas 1 a 8 del collage
@@ -38,6 +40,7 @@ object Routes {
     const val REGISTER = "register"
     const val HOME = "home"
     const val SILOS = "silos"
+    const val ADD_SILO = "add_silo"
     const val DETAIL = "detail"
     const val MOVEMENT = "movement"
     const val HISTORY = "history"
@@ -153,7 +156,17 @@ fun AppNavigation() {
             composable(Routes.SILOS) {
                 SilosScreen(
                     onSiloClick = { navController.goTo(Routes.detail(it)) },
-                    onAddClick = { navController.goTo(Routes.movement()) }
+                    onAddClick = { navController.goTo(Routes.ADD_SILO) }
+                )
+            }
+            composable(Routes.ADD_SILO) {
+                AddSiloScreen(
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                    onSaved = { _, _, _, _, _ ->
+                        navController.popBackStack()
+                    }
                 )
             }
             composable(
@@ -187,7 +200,13 @@ fun AppNavigation() {
             composable(Routes.HISTORY) { HistoryScreen() }
 
             // ---------- Pantallas 9 a 16 (provisorias) ----------
-            composable(Routes.ALERTS) { PlaceholderScreen("9. Alertas") }
+
+            composable(Routes.ALERTS) {
+                AlertsScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
             composable(Routes.LOCATION) {
                 PlaceholderScreen(
                     "10. Ubicación del silo",
