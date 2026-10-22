@@ -40,6 +40,8 @@ import com.example.monitoreosilos.ui.screens.SiloCameraScreen
 import com.example.monitoreosilos.ui.screens.StatisticsScreen
 import com.example.monitoreosilos.ui.screens.ProfileScreen
 import com.example.monitoreosilos.data.repository.UserRepository
+import com.example.monitoreosilos.ui.screens.SettingsScreen
+import com.example.monitoreosilos.ui.screens.StorageScreen
 object Routes {
 
     // Pantallas principales
@@ -483,32 +485,30 @@ fun AppNavigation() {
 
             // ---------- Configuración (pendiente) ----------
 
+
             composable(Routes.SETTINGS) {
-                PlaceholderScreen(
-                    "15. Configuración",
-                    listOf(
-                        "Almacenamiento local" to {
-                            navController.goTo(Routes.STORAGE)
-                        },
-                        "Volver" to {
-                            navController.popBackStack()
-                        }
-                    )
+                SettingsScreen(
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                    onStorage = {
+                        navController.goTo(Routes.STORAGE)
+                    }
                 )
             }
+
 
             // ---------- Almacenamiento local (pendiente) ----------
 
+
             composable(Routes.STORAGE) {
-                PlaceholderScreen(
-                    "16. Almacenamiento local",
-                    listOf(
-                        "Volver" to {
-                            navController.popBackStack()
-                        }
-                    )
+                StorageScreen(
+                    onBack = {
+                        navController.popBackStack()
+                    }
                 )
             }
+
         }
     }
 }

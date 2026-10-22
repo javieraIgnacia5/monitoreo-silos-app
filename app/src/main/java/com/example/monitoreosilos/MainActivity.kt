@@ -11,12 +11,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.monitoreosilos.data.repository.SiloRepository
 import com.example.monitoreosilos.data.repository.UserRepository
 import com.example.monitoreosilos.domain.model.SiloStatus
 import com.example.monitoreosilos.notifications.SiloNotificationHelper
+import com.example.monitoreosilos.settings.ThemeMode
+import com.example.monitoreosilos.settings.ThemePreferences
 import com.example.monitoreosilos.ui.navigation.AppNavigation
 import com.example.monitoreosilos.ui.theme.MonitoreoSilosTheme
 import kotlinx.coroutines.launch
@@ -34,19 +39,35 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Inicialización de repositorios
         SiloRepository.init(this)
         UserRepository.init(this)
 
+        // Cargar la preferencia de apariencia guardada
+        ThemePreferences.init(this)
+
+        // Configuración de notificaciones
         crearCanalNotificaciones()
         comprobarPermisoNotificaciones()
 
-        // Aquí activamos la observación de los silos
+        // Observar los silos y sus alertas críticas
         observarAlertasCriticas()
 
         enableEdgeToEdge()
 
         setContent {
-            MonitoreoSilosTheme {
+
+            val themeMode by ThemePreferences.themeMode.collectAsState()
+
+            val darkTheme = when (themeMode) {
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+            }
+
+            MonitoreoSilosTheme(
+                darkTheme = darkTheme
+            ) {
                 AppNavigation()
             }
         }
@@ -54,12 +75,14 @@ class MainActivity : ComponentActivity() {
 
     private fun crearCanalNotificaciones() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+
             val canal = NotificationChannel(
                 "alertas_silos",
                 "Alertas de silos",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Notificaciones sobre niveles críticos de almacenamiento"
+                description =
+                    "Notificaciones sobre niveles críticos de almacenamiento"
             }
 
             val administrador = getSystemService(
@@ -72,6 +95,7 @@ class MainActivity : ComponentActivity() {
 
     private fun comprobarPermisoNotificaciones() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+
             val permisoConcedido = ContextCompat.checkSelfPermission(
                 this,
                 Manifest.permission.POST_NOTIFICATIONS
@@ -86,31 +110,39 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun observarAlertasCriticas() {
+
         val prefsAlertas = getSharedPreferences(
             "alertas_notificadas",
             MODE_PRIVATE
         )
 
         lifecycleScope.launch {
+
             SiloRepository.silos.collect { silos ->
+
                 silos.forEach { silo ->
+
                     val clave = "critico_${silo.id}"
 
                     if (silo.status == SiloStatus.CRITICAL) {
+
                         val yaNotificado = prefsAlertas.getBoolean(
                             clave,
                             false
                         )
 
                         if (!yaNotificado) {
+
                             val permisoConcedido =
-                                Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                                Build.VERSION.SDK_INT <
+                                        Build.VERSION_CODES.TIRAMISU ||
                                         ContextCompat.checkSelfPermission(
                                             this@MainActivity,
                                             Manifest.permission.POST_NOTIFICATIONS
                                         ) == PackageManager.PERMISSION_GRANTED
 
                             if (permisoConcedido) {
+
                                 SiloNotificationHelper.mostrarAlertaCritica(
                                     this@MainActivity,
                                     silo
@@ -121,8 +153,11 @@ class MainActivity : ComponentActivity() {
                                     .apply()
                             }
                         }
+
                     } else {
+
                         if (prefsAlertas.contains(clave)) {
+
                             prefsAlertas.edit()
                                 .remove(clave)
                                 .apply()
