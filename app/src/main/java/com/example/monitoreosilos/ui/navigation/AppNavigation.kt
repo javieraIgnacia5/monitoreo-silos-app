@@ -38,6 +38,8 @@ import com.example.monitoreosilos.ui.screens.SilosScreen
 import com.example.monitoreosilos.ui.screens.SplashScreen
 import com.example.monitoreosilos.ui.screens.SiloCameraScreen
 import com.example.monitoreosilos.ui.screens.StatisticsScreen
+import com.example.monitoreosilos.ui.screens.ProfileScreen
+import com.example.monitoreosilos.data.repository.UserRepository
 object Routes {
 
     // Pantallas principales
@@ -76,7 +78,6 @@ object Routes {
 
     fun location(id: String) = "location/$id"
 
-    // Pantallas pendientes
     const val CAMERA = "camera"
     const val CAMERA_ROUTE = "camera/{siloId}"
 
@@ -206,11 +207,14 @@ fun AppNavigation() {
             composable(Routes.SPLASH) {
                 SplashScreen(
                     onFinished = {
+
                         navController.navigate(Routes.LOGIN) {
-                            popUpTo(Routes.SPLASH) {
+                            popUpTo(navController.graph.id) {
                                 inclusive = true
                             }
+                            launchSingleTop = true
                         }
+
                     }
                 )
             }
@@ -452,21 +456,30 @@ fun AppNavigation() {
             }
 
 
-            // ---------- Perfil (pendiente) ----------
+
+            // ---------- Perfil de usuario ----------
 
             composable(Routes.PROFILE) {
-                PlaceholderScreen(
-                    "14. Perfil",
-                    listOf(
-                        "Estadísticas" to {
-                            navController.goTo(Routes.STATS)
-                        },
-                        "Configuración" to {
-                            navController.goTo(Routes.SETTINGS)
+                ProfileScreen(
+                    onStatistics = {
+                        navController.goTo(Routes.STATS)
+                    },
+                    onSettings = {
+                        navController.goTo(Routes.SETTINGS)
+                    },
+                    onLogout = {
+                        UserRepository.logout()
+
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(Routes.HOME) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
                         }
-                    )
+                    }
                 )
             }
+
 
             // ---------- Configuración (pendiente) ----------
 
