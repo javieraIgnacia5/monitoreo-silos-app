@@ -22,6 +22,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+
 import com.example.monitoreosilos.ui.screens.AddSiloScreen
 import com.example.monitoreosilos.ui.screens.AlertsScreen
 import com.example.monitoreosilos.ui.screens.EditSiloScreen
@@ -32,9 +33,10 @@ import com.example.monitoreosilos.ui.screens.MovementScreen
 import com.example.monitoreosilos.ui.screens.PlaceholderScreen
 import com.example.monitoreosilos.ui.screens.RegisterScreen
 import com.example.monitoreosilos.ui.screens.SiloDetailScreen
+import com.example.monitoreosilos.ui.screens.SiloLocationScreen
 import com.example.monitoreosilos.ui.screens.SilosScreen
 import com.example.monitoreosilos.ui.screens.SplashScreen
-
+import com.example.monitoreosilos.ui.screens.SiloCameraScreen
 object Routes {
 
     // Pantallas principales
@@ -52,23 +54,36 @@ object Routes {
     fun editSilo(id: String) = "edit_silo/$id"
 
     const val DETAIL = "detail"
+    const val DETAIL_ROUTE = "detail/{siloId}"
+
+    fun detail(id: String) = "detail/$id"
+
+    // Movimientos
     const val MOVEMENT = "movement"
+    const val MOVEMENT_ROUTE = "movement?siloId={siloId}"
+
+    fun movement(id: String = "") = "movement?siloId=$id"
+
     const val HISTORY = "history"
 
-    // Otras pantallas
+    // Alertas
     const val ALERTS = "alerts"
+
+    // Ubicación de silos
     const val LOCATION = "location"
+    const val LOCATION_ROUTE = "location/{siloId}"
+
+    fun location(id: String) = "location/$id"
+
+    // Pantallas pendientes
     const val CAMERA = "camera"
+    const val CAMERA_ROUTE = "camera/{siloId}"
+
+    fun camera(id: String) = "camera/$id"
     const val STATS = "stats"
     const val PROFILE = "profile"
     const val SETTINGS = "settings"
     const val STORAGE = "storage"
-
-    const val DETAIL_ROUTE = "detail/{siloId}"
-    const val MOVEMENT_ROUTE = "movement?siloId={siloId}"
-
-    fun detail(id: String) = "detail/$id"
-    fun movement(id: String = "") = "movement?siloId=$id"
 }
 
 private data class BottomItem(
@@ -78,11 +93,31 @@ private data class BottomItem(
 )
 
 private val bottomItems = listOf(
-    BottomItem(Routes.HOME, "Inicio", Icons.Filled.Home),
-    BottomItem(Routes.SILOS, "Silos", Icons.Filled.Inventory2),
-    BottomItem(Routes.HISTORY, "Movimientos", Icons.Filled.SwapHoriz),
-    BottomItem(Routes.ALERTS, "Alertas", Icons.Filled.Notifications),
-    BottomItem(Routes.PROFILE, "Perfil", Icons.Filled.Person)
+    BottomItem(
+        Routes.HOME,
+        "Inicio",
+        Icons.Filled.Home
+    ),
+    BottomItem(
+        Routes.SILOS,
+        "Silos",
+        Icons.Filled.Inventory2
+    ),
+    BottomItem(
+        Routes.HISTORY,
+        "Movimientos",
+        Icons.Filled.SwapHoriz
+    ),
+    BottomItem(
+        Routes.ALERTS,
+        "Alertas",
+        Icons.Filled.Notifications
+    ),
+    BottomItem(
+        Routes.PROFILE,
+        "Perfil",
+        Icons.Filled.Person
+    )
 )
 
 private fun NavController.goTo(route: String) = navigate(route)
@@ -91,6 +126,8 @@ private fun tabFor(route: String?): String? = when {
     route == null -> null
     bottomItems.any { it.route == route } -> route
     route.startsWith(Routes.DETAIL) -> Routes.SILOS
+    route.startsWith(Routes.EDIT_SILO) -> Routes.SILOS
+    route.startsWith(Routes.LOCATION) -> Routes.SILOS
     route.startsWith(Routes.MOVEMENT) -> Routes.HISTORY
     else -> null
 }
@@ -100,8 +137,11 @@ fun AppNavigation() {
 
     val navController = rememberNavController()
 
-    val backStackEntry by navController.currentBackStackEntryAsState()
+    val backStackEntry by
+    navController.currentBackStackEntryAsState()
+
     val currentRoute = backStackEntry?.destination?.route
+
     val activeTab = tabFor(currentRoute)
 
     Scaffold(
@@ -111,15 +151,18 @@ fun AppNavigation() {
                     containerColor = MaterialTheme.colorScheme.surface
                 ) {
                     bottomItems.forEach { item ->
+
                         NavigationBarItem(
                             selected = activeTab == item.route,
                             onClick = {
                                 navController.navigate(item.route) {
                                     popUpTo(
-                                        navController.graph.findStartDestination().id
+                                        navController.graph
+                                            .findStartDestination().id
                                     ) {
                                         saveState = true
                                     }
+
                                     launchSingleTop = true
                                     restoreState = true
                                 }
@@ -133,14 +176,15 @@ fun AppNavigation() {
                             label = {
                                 Text(item.title)
                             },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor =
-                                    MaterialTheme.colorScheme.onPrimary,
-                                selectedTextColor =
-                                    MaterialTheme.colorScheme.primary,
-                                indicatorColor =
-                                    MaterialTheme.colorScheme.primary
-                            )
+                            colors =
+                                NavigationBarItemDefaults.colors(
+                                    selectedIconColor =
+                                        MaterialTheme.colorScheme.onPrimary,
+                                    selectedTextColor =
+                                        MaterialTheme.colorScheme.primary,
+                                    indicatorColor =
+                                        MaterialTheme.colorScheme.primary
+                                )
                         )
                     }
                 }
@@ -245,7 +289,7 @@ fun AppNavigation() {
             // ---------- Detalle del silo ----------
 
             composable(
-                Routes.DETAIL_ROUTE,
+                route = Routes.DETAIL_ROUTE,
                 arguments = listOf(
                     navArgument("siloId") {
                         type = NavType.StringType
@@ -254,7 +298,8 @@ fun AppNavigation() {
             ) { entry ->
 
                 SiloDetailScreen(
-                    siloId = entry.arguments?.getString("siloId") ?: "",
+                    siloId =
+                        entry.arguments?.getString("siloId") ?: "",
                     onBack = {
                         navController.popBackStack()
                     },
@@ -262,8 +307,17 @@ fun AppNavigation() {
                         navController.goTo(Routes.movement(it))
                     },
                     onLocation = {
-                        navController.goTo(Routes.LOCATION)
+                        val id =
+                            entry.arguments?.getString("siloId") ?: ""
+
+                        navController.goTo(Routes.location(id))
                     },
+
+                    onCamera = {
+                        val id = entry.arguments?.getString("siloId") ?: ""
+                        navController.goTo(Routes.camera(id))
+                    },
+
                     onEdit = {
                         navController.goTo(Routes.editSilo(it))
                     },
@@ -276,7 +330,7 @@ fun AppNavigation() {
             // ---------- Editar silo ----------
 
             composable(
-                Routes.EDIT_SILO_ROUTE,
+                route = Routes.EDIT_SILO_ROUTE,
                 arguments = listOf(
                     navArgument("siloId") {
                         type = NavType.StringType
@@ -285,7 +339,31 @@ fun AppNavigation() {
             ) { entry ->
 
                 EditSiloScreen(
-                    siloId = entry.arguments?.getString("siloId") ?: "",
+                    siloId =
+                        entry.arguments?.getString("siloId") ?: "",
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                    onSaved = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            // ---------- Ubicación manual y GPS ----------
+
+            composable(
+                route = Routes.LOCATION_ROUTE,
+                arguments = listOf(
+                    navArgument("siloId") {
+                        type = NavType.StringType
+                    }
+                )
+            ) { entry ->
+
+                SiloLocationScreen(
+                    siloId =
+                        entry.arguments?.getString("siloId") ?: "",
                     onBack = {
                         navController.popBackStack()
                     },
@@ -298,7 +376,7 @@ fun AppNavigation() {
             // ---------- Registrar movimiento ----------
 
             composable(
-                Routes.MOVEMENT_ROUTE,
+                route = Routes.MOVEMENT_ROUTE,
                 arguments = listOf(
                     navArgument("siloId") {
                         type = NavType.StringType
@@ -337,31 +415,29 @@ fun AppNavigation() {
                 )
             }
 
-            // ---------- Ubicación (pendiente) ----------
-
-            composable(Routes.LOCATION) {
-                PlaceholderScreen(
-                    "10. Ubicación del silo",
-                    listOf(
-                        "Volver" to {
-                            navController.popBackStack()
-                        }
-                    )
-                )
-            }
-
             // ---------- Cámara (pendiente) ----------
 
-            composable(Routes.CAMERA) {
-                PlaceholderScreen(
-                    "11. Cámara",
-                    listOf(
-                        "Volver" to {
-                            navController.popBackStack()
-                        }
-                    )
+
+            composable(
+                route = Routes.CAMERA_ROUTE,
+                arguments = listOf(
+                    navArgument("siloId") {
+                        type = NavType.StringType
+                    }
+                )
+            ) { entry ->
+
+                SiloCameraScreen(
+                    siloId = entry.arguments?.getString("siloId") ?: "",
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                    onSaved = {
+                        navController.popBackStack()
+                    }
                 )
             }
+
 
             // ---------- Estadísticas (pendiente) ----------
 

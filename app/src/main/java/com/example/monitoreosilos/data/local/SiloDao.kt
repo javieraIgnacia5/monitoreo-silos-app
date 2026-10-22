@@ -29,4 +29,7 @@ interface SiloDao {
     @Query("SELECT COUNT(*) FROM silos")
     suspend fun contarSilos(): Int
 
+    @Query("SELECT * FROM silos ORDER BY id")
+    suspend fun obtenerTodosLosSilos(): List<SiloEntity>
+
 }

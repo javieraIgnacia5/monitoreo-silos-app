@@ -23,6 +23,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.monitoreosilos.R
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import com.example.monitoreosilos.data.SiloPhotoStorage
 
 /** Foto del silo según su id (S1 a S4). */
 @Composable
@@ -46,12 +50,30 @@ fun SiloThumb(siloId: String, modifier: Modifier = Modifier) {
 
 /** Foto grande de la parte superior del detalle. */
 
+
 @Composable
 fun SiloHeaderImage(
     siloId: String,
     modifier: Modifier = Modifier
 ) {
-    val imagen = when (siloId) {
+    val context = LocalContext.current
+
+    val photoFile = remember(siloId) {
+        SiloPhotoStorage.getPhoto(context, siloId)
+    }
+
+    val customBitmap = remember(siloId, photoFile) {
+        try {
+            photoFile?.let {
+                BitmapFactory.decodeFile(it.absolutePath)
+                    ?.asImageBitmap()
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    val defaultImage = when (siloId) {
         "S1" -> R.drawable.silo_thumb_1
         "S2" -> R.drawable.silo_thumb_2
         "S3" -> R.drawable.silo_thumb_3
@@ -60,13 +82,27 @@ fun SiloHeaderImage(
         else -> R.drawable.silo_thumb_1
     }
 
-    Image(
-        painter = painterResource(id = imagen),
-        contentDescription = "Fotografía del silo $siloId",
-        contentScale = ContentScale.Crop,
-        modifier = modifier.clip(RoundedCornerShape(20.dp))
-    )
+    if (customBitmap != null) {
+        Image(
+            bitmap = customBitmap,
+            contentDescription = "Fotografía personalizada del silo",
+            contentScale = ContentScale.Crop,
+            modifier = modifier.clip(
+                RoundedCornerShape(20.dp)
+            )
+        )
+    } else {
+        Image(
+            painter = painterResource(defaultImage),
+            contentDescription = "Fotografía del silo $siloId",
+            contentScale = ContentScale.Crop,
+            modifier = modifier.clip(
+                RoundedCornerShape(20.dp)
+            )
+        )
+    }
 }
+
 
 
 /** Círculo de porcentaje que se llena con animación. */

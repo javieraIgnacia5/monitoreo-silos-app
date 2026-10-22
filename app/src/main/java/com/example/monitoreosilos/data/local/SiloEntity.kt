@@ -14,5 +14,12 @@ data class SiloEntity(
     val farm: String,
     val capacityTon: Int,
     val currentTon: Double,
-    val updatedAt: String
+    val updatedAt: String,
+
+    // Ubicación ingresada manualmente
+    val locationAddress: String = "",
+
+    // Coordenadas obtenidas mediante GPS
+    val latitude: Double? = null,
+    val longitude: Double? = null
 )

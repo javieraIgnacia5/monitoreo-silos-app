@@ -33,6 +33,7 @@ import com.example.monitoreosilos.ui.components.color
 import com.example.monitoreosilos.util.formatTon
 import com.example.monitoreosilos.viewmodel.SiloDetailViewModel
 import kotlinx.coroutines.launch
+import androidx.compose.material.icons.filled.CameraAlt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +42,7 @@ fun SiloDetailScreen(
     onBack: () -> Unit,
     onRegister: (String) -> Unit,
     onLocation: () -> Unit,
+    onCamera: () -> Unit,
     onEdit: (String) -> Unit,
     onDeleted: () -> Unit,
     viewModel: SiloDetailViewModel = viewModel()
@@ -101,6 +103,14 @@ fun SiloDetailScreen(
                             contentDescription = "Ubicación"
                         )
                     }
+
+                    IconButton(onClick = onCamera) {
+                        Icon(
+                            Icons.Filled.CameraAlt,
+                            contentDescription = "Fotografía del silo"
+                        )
+                    }
+
                 }
             )
         }
@@ -223,6 +233,70 @@ fun SiloDetailScreen(
                 }
 
                 Spacer(Modifier.height(16.dp))
+
+                // ---------- Ubicación del silo ----------
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    border = BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outline
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Filled.LocationOn,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+
+                            Spacer(Modifier.width(8.dp))
+
+                            Text(
+                                "Ubicación del silo",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        if (
+                            s.locationAddress.isBlank() &&
+                            (s.latitude == null || s.longitude == null)
+                        ) {
+                            Text("Ubicación no registrada")
+                        } else {
+
+                            if (s.locationAddress.isNotBlank()) {
+                                Text(s.locationAddress)
+                            }
+
+                            if (s.latitude != null && s.longitude != null) {
+                                Text("Latitud: ${s.latitude}")
+                                Text("Longitud: ${s.longitude}")
+                            }
+                        }
+
+                        TextButton(
+                            onClick = onLocation
+                        ) {
+                            Text("Editar ubicación")
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
 
                 Text(
                     "Nivel en los últimos 7 días",
