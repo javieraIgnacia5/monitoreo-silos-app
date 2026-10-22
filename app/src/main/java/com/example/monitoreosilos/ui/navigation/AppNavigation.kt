@@ -37,6 +37,7 @@ import com.example.monitoreosilos.ui.screens.SiloLocationScreen
 import com.example.monitoreosilos.ui.screens.SilosScreen
 import com.example.monitoreosilos.ui.screens.SplashScreen
 import com.example.monitoreosilos.ui.screens.SiloCameraScreen
+import com.example.monitoreosilos.ui.screens.StatisticsScreen
 object Routes {
 
     // Pantallas principales
@@ -441,16 +442,15 @@ fun AppNavigation() {
 
             // ---------- Estadísticas (pendiente) ----------
 
+
             composable(Routes.STATS) {
-                PlaceholderScreen(
-                    "12. Estadísticas",
-                    listOf(
-                        "Volver" to {
-                            navController.popBackStack()
-                        }
-                    )
+                StatisticsScreen(
+                    onBack = {
+                        navController.popBackStack()
+                    }
                 )
             }
+
 
             // ---------- Perfil (pendiente) ----------
 
