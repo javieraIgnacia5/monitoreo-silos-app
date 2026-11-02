@@ -1,3 +1,4 @@
+
 package com.example.monitoreosilos.domain.model
 
 enum class UserRole(val label: String) {
@@ -24,15 +25,27 @@ data class Silo(
     val farm: String,
     val capacityTon: Int,
     val currentTon: Double,
-    val updatedAt: String
+    val updatedAt: String,
+
+    // Dirección o referencia escrita manualmente
+    val locationAddress: String = "",
+
+    // Coordenadas obtenidas con GPS
+    val latitude: Double? = null,
+    val longitude: Double? = null
 ) {
+
     val percentage: Int
-        get() = if (capacityTon == 0) 0 else ((currentTon * 100) / capacityTon).toInt()
+        get() = if (capacityTon == 0) {
+            0
+        } else {
+            ((currentTon * 100) / capacityTon).toInt()
+        }
 
     val status: SiloStatus
         get() = when {
-            percentage <= 20 -> SiloStatus.CRITICAL
-            percentage <= 50 -> SiloStatus.WARNING
+            percentage < 20 -> SiloStatus.CRITICAL
+            percentage <= 30 -> SiloStatus.WARNING
             else -> SiloStatus.NORMAL
         }
 }

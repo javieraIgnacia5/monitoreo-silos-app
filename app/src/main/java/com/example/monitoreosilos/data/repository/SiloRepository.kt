@@ -196,6 +196,62 @@ object SiloRepository {
         )
     }
 
+
+    // ---------- Ubicación manual y GPS de silos ----------
+
+    suspend fun updateSiloLocation(
+        siloId: String,
+        address: String,
+        latitude: Double?,
+        longitude: Double?
+    ) = movementMutex.withLock {
+
+        check(::database.isInitialized && _isReady.value) {
+            "La base de datos todavía no está lista"
+        }
+
+        require(
+            (latitude == null && longitude == null) ||
+                    (latitude != null && longitude != null)
+        ) {
+            "Debes proporcionar ambas coordenadas GPS"
+        }
+
+        require(latitude == null || (
+                latitude.isFinite() && latitude in -90.0..90.0
+                )) {
+            "La latitud debe estar entre -90 y 90"
+        }
+
+        require(longitude == null || (
+                longitude.isFinite() && longitude in -180.0..180.0
+                )) {
+            "La longitud debe estar entre -180 y 180"
+        }
+
+        val siloExistente = database.siloDao()
+            .obtenerSiloPorId(siloId)
+            ?: throw IllegalArgumentException(
+                "No se encontró el silo seleccionado"
+            )
+
+        val siloActualizado = siloExistente.copy(
+            locationAddress = address.trim(),
+            latitude = latitude,
+            longitude = longitude
+        )
+
+        database.siloDao().guardarSilo(siloActualizado)
+
+        cargarDatosDesdeRoom()
+
+        Log.d(
+            "SiloRepository",
+            "Ubicación guardada para el silo: ${siloActualizado.name}"
+        )
+    }
+
+
     // ---------- Eliminación segura de silos ----------
 
     suspend fun deleteSilo(siloId: String) = movementMutex.withLock {

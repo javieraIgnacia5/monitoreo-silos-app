@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Permiso para consultar el clima real -->
+    <uses-permission
+        android:name="android.permission.INTERNET" />
+
     <!-- Permiso de notificaciones -->
     <uses-permission
         android:name="android.permission.POST_NOTIFICATIONS" />
