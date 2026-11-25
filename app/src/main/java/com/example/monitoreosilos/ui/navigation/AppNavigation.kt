@@ -40,6 +40,7 @@ import com.example.monitoreosilos.ui.screens.SiloCameraScreen
 import com.example.monitoreosilos.ui.screens.StatisticsScreen
 import com.example.monitoreosilos.ui.screens.ProfileScreen
 import com.example.monitoreosilos.data.repository.UserRepository
+import com.example.monitoreosilos.ui.screens.PerfilScreen
 import com.example.monitoreosilos.ui.screens.SettingsScreen
 import com.example.monitoreosilos.ui.screens.StorageScreen
 object Routes {
@@ -55,6 +56,8 @@ object Routes {
     const val ADD_SILO = "add_silo"
     const val EDIT_SILO = "edit_silo"
     const val EDIT_SILO_ROUTE = "edit_silo/{siloId}"
+
+    const val PERFIL = "perfil"
 
     fun editSilo(id: String) = "edit_silo/$id"
 
@@ -234,6 +237,9 @@ fun AppNavigation() {
                     },
                     onRegisterClick = {
                         navController.goTo(Routes.REGISTER)
+                    },
+                    onPantallaNuevaClick = {
+                        navController.goTo(Routes.PERFIL)
                     }
                 )
             }
@@ -497,7 +503,6 @@ fun AppNavigation() {
                 )
             }
 
-
             // ---------- Almacenamiento local (pendiente) ----------
 
 
@@ -509,6 +514,16 @@ fun AppNavigation() {
                 )
             }
 
+
+            composable(Routes.PERFIL) {
+                PerfilScreen()
+
+
+            }
+
         }
     }
+
 }
+
+

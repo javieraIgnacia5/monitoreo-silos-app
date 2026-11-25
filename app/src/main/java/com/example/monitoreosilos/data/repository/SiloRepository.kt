@@ -9,6 +9,7 @@ import com.example.monitoreosilos.data.SampleData
 import com.example.monitoreosilos.data.local.SiloDatabase
 import com.example.monitoreosilos.data.local.toDomain
 import com.example.monitoreosilos.data.local.toEntity
+import com.example.monitoreosilos.data.remote.SiloRemoteDataSource
 import com.example.monitoreosilos.domain.model.Movement
 import com.example.monitoreosilos.domain.model.MovementType
 import com.example.monitoreosilos.domain.model.Silo
@@ -24,20 +25,21 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
+import java.util.UUID
 
 object SiloRepository {
 
     private lateinit var prefs: SharedPreferences
     private lateinit var database: SiloDatabase
 
+    private val remoteDataSource = SiloRemoteDataSource()
+
     private val repositoryScope = CoroutineScope(
         SupervisorJob() + Dispatchers.IO
     )
 
-    // Evita registrar dos movimientos simultáneamente.
     private val movementMutex = Mutex()
 
-    // Indica si Room terminó de cargar correctamente.
     private val _isReady = MutableStateFlow(false)
     val isReady: StateFlow<Boolean> = _isReady.asStateFlow()
 
@@ -65,13 +67,19 @@ object SiloRepository {
             try {
                 movementMutex.withLock {
                     migrarDatosARoom()
+
+                    // Primero mostrar los datos guardados localmente.
                     cargarDatosDesdeRoom()
+
+                    // Luego consultar los silos reales de MySQL.
+                    sincronizarSilosDesdeServidor()
+
                     _isReady.value = true
                 }
 
                 Log.d(
                     "SiloRepository",
-                    "SiloControl cargó los datos desde Room correctamente"
+                    "SiloControl inició correctamente"
                 )
 
             } catch (e: Exception) {
@@ -79,10 +87,63 @@ object SiloRepository {
 
                 Log.e(
                     "SiloRepository",
-                    "Error al cargar los datos desde Room",
+                    "Error al iniciar SiloControl",
                     e
                 )
             }
+        }
+    }
+
+    // ---------- Sincronización desde MySQL ----------
+
+    private suspend fun sincronizarSilosDesdeServidor() {
+        try {
+            // GET /api/silos
+            val silosRemotos = remoteDataSource.obtenerSilos()
+
+            // Actualizar Room con los datos del servidor.
+            database.withTransaction {
+
+                val silosLocales = database.siloDao()
+                    .obtenerTodosLosSilos()
+
+                val idsRemotos = silosRemotos
+                    .map { it.id }
+                    .toSet()
+
+                // Eliminar de la lista local los silos
+                // que ya no existen en MySQL.
+                silosLocales.forEach { siloLocal ->
+                    if (siloLocal.id !in idsRemotos) {
+                        database.siloDao().eliminarSilo(
+                            siloLocal.id
+                        )
+                    }
+                }
+
+                // Guardar los silos recibidos del backend.
+                database.siloDao().guardarSilos(
+                    silosRemotos.map { it.toEntity() }
+                )
+            }
+
+            cargarDatosDesdeRoom()
+
+            Log.d(
+                "SiloRepository",
+                "Sincronización completada: " +
+                        "${silosRemotos.size} silos desde MySQL"
+            )
+
+        } catch (e: Exception) {
+            // Si el backend está apagado, conservar
+            // los datos locales para mostrar la aplicación.
+            Log.w(
+                "SiloRepository",
+                "No se pudo consultar MySQL. " +
+                        "Se conservarán los datos de Room.",
+                e
+            )
         }
     }
 
@@ -92,8 +153,9 @@ object SiloRepository {
         return _silos.value.firstOrNull {
             it.id == id
         }
-
     }
+
+    // ---------- Crear silo ----------
 
     suspend fun addSilo(
         name: String,
@@ -115,15 +177,17 @@ object SiloRepository {
             "Debes completar el grano y el predio"
         }
 
-        require(capacity > 0 && current.isFinite() &&
-                current >= 0 && current <= capacity) {
+        require(
+            capacity > 0 &&
+                    current.isFinite() &&
+                    current >= 0 &&
+                    current <= capacity
+        ) {
             "La cantidad debe estar entre cero y la capacidad máxima"
         }
 
-        val nuevoId = java.util.UUID.randomUUID().toString()
-
         val nuevoSilo = Silo(
-            id = nuevoId,
+            id = UUID.randomUUID().toString(),
             name = name.trim(),
             grain = grain.trim(),
             farm = farm.trim(),
@@ -132,14 +196,23 @@ object SiloRepository {
             updatedAt = DateUtils.now()
         )
 
-        database.siloDao().guardarSilo(nuevoSilo.toEntity())
+        // Guardar primero en MySQL.
+        remoteDataSource.crearSilo(nuevoSilo)
+
+        // Guardar también en Room.
+        database.siloDao().guardarSilo(
+            nuevoSilo.toEntity()
+        )
 
         cargarDatosDesdeRoom()
 
-        Log.d("SiloRepository", "Nuevo silo guardado: ${nuevoSilo.name}")
+        Log.d(
+            "SiloRepository",
+            "Nuevo silo guardado: ${nuevoSilo.name}"
+        )
     }
 
-    // ---------- Edición de silos ----------
+    // ---------- Editar silo ----------
 
     suspend fun updateSilo(
         siloId: String,
@@ -184,6 +257,8 @@ object SiloRepository {
             updatedAt = DateUtils.now()
         )
 
+        remoteDataSource.actualizarSilo(siloActualizado)
+
         database.siloDao().guardarSilo(
             siloActualizado.toEntity()
         )
@@ -196,8 +271,7 @@ object SiloRepository {
         )
     }
 
-
-    // ---------- Ubicación manual y GPS de silos ----------
+    // ---------- Actualizar ubicación ----------
 
     suspend fun updateSiloLocation(
         siloId: String,
@@ -210,27 +284,9 @@ object SiloRepository {
             "La base de datos todavía no está lista"
         }
 
-        require(
-            (latitude == null && longitude == null) ||
-                    (latitude != null && longitude != null)
-        ) {
-            "Debes proporcionar ambas coordenadas GPS"
-        }
-
-        require(latitude == null || (
-                latitude.isFinite() && latitude in -90.0..90.0
-                )) {
-            "La latitud debe estar entre -90 y 90"
-        }
-
-        require(longitude == null || (
-                longitude.isFinite() && longitude in -180.0..180.0
-                )) {
-            "La longitud debe estar entre -180 y 180"
-        }
-
         val siloExistente = database.siloDao()
             .obtenerSiloPorId(siloId)
+            ?.toDomain()
             ?: throw IllegalArgumentException(
                 "No se encontró el silo seleccionado"
             )
@@ -238,23 +294,30 @@ object SiloRepository {
         val siloActualizado = siloExistente.copy(
             locationAddress = address.trim(),
             latitude = latitude,
-            longitude = longitude
+            longitude = longitude,
+            updatedAt = DateUtils.now()
         )
 
-        database.siloDao().guardarSilo(siloActualizado)
+        // Guardar ubicación en MySQL y Room.
+        remoteDataSource.actualizarSilo(siloActualizado)
+
+        database.siloDao().guardarSilo(
+            siloActualizado.toEntity()
+        )
 
         cargarDatosDesdeRoom()
 
         Log.d(
             "SiloRepository",
-            "Ubicación guardada para el silo: ${siloActualizado.name}"
+            "Ubicación actualizada: ${siloActualizado.name}"
         )
     }
 
+    // ---------- Eliminar silo ----------
 
-    // ---------- Eliminación segura de silos ----------
-
-    suspend fun deleteSilo(siloId: String) = movementMutex.withLock {
+    suspend fun deleteSilo(
+        siloId: String
+    ) = movementMutex.withLock {
 
         check(::database.isInitialized && _isReady.value) {
             "La base de datos todavía no está lista"
@@ -268,17 +331,23 @@ object SiloRepository {
             )
 
         require(silo.currentTon == 0.0) {
-            "No puedes eliminar un silo que contiene grano. Primero debe estar vacío."
+            "No puedes eliminar un silo que contiene grano. " +
+                    "Primero debe estar vacío."
         }
 
         val tieneMovimientos = database.movementDao()
             .obtenerMovimientos()
             .first()
-            .any { it.siloId == siloId }
+            .any {
+                it.siloId == siloId
+            }
 
         require(!tieneMovimientos) {
-            "No puedes eliminar un silo que tiene movimientos registrados en el historial."
+            "No puedes eliminar un silo que tiene movimientos " +
+                    "registrados en el historial."
         }
+
+        remoteDataSource.eliminarSilo(siloId)
 
         database.siloDao().eliminarSilo(siloId)
 
@@ -290,8 +359,7 @@ object SiloRepository {
         )
     }
 
-
-    // ---------- Registro de movimientos ----------
+    // ---------- Registrar ingresos y salidas ----------
 
     suspend fun registerMovement(
         siloId: String,
@@ -302,93 +370,83 @@ object SiloRepository {
         grain: String
     ) = movementMutex.withLock {
 
-        check(::database.isInitialized) {
-            "La base de datos todavía no está inicializada"
+        check(::database.isInitialized && _isReady.value) {
+            "La base de datos todavía no está lista"
         }
 
         require(tons.isFinite() && tons > 0) {
             "La cantidad debe ser mayor que cero"
         }
 
-        // Completar la migración si todavía está pendiente.
-        migrarDatosARoom()
+        val silo = database.siloDao()
+            .obtenerSiloPorId(siloId)
+            ?.toDomain()
+            ?: throw IllegalArgumentException(
+                "No se encontró el silo seleccionado"
+            )
 
-        // Leer, calcular y guardar en una sola transacción.
+        val nuevoNivel = when (type) {
+            MovementType.INGRESO -> silo.currentTon + tons
+            MovementType.SALIDA -> silo.currentTon - tons
+        }
+
+        require(
+            nuevoNivel.isFinite() &&
+                    nuevoNivel >= 0 &&
+                    nuevoNivel <= silo.capacityTon
+        ) {
+            "La cantidad supera los límites del silo"
+        }
+
+        val siloActualizado = silo.copy(
+            currentTon = nuevoNivel,
+            updatedAt = DateUtils.now()
+        )
+
+        val movimientosActuales = database.movementDao()
+            .obtenerMovimientos()
+            .first()
+
+        val ultimoId = movimientosActuales.maxOfOrNull {
+            it.id
+        } ?: 0L
+
+        check(ultimoId < Long.MAX_VALUE) {
+            "No se puede generar otro ID de movimiento"
+        }
+
+        val movimiento = Movement(
+            id = ultimoId + 1L,
+            siloId = silo.id,
+            siloName = silo.name,
+            grain = grain,
+            type = type,
+            tons = tons,
+            date = date,
+            notes = notes
+        )
+
+        // Actualizar toneladas primero en MySQL.
+        remoteDataSource.actualizarSilo(siloActualizado)
+
+        // Guardar silo e historial en Room.
         database.withTransaction {
 
-            val siloEntity = database.siloDao()
-                .obtenerSiloPorId(siloId)
-                ?: throw IllegalArgumentException(
-                    "No se encontró el silo seleccionado"
-                )
-
-            val silo = siloEntity.toDomain()
-
-            val nuevoNivel = when (type) {
-                MovementType.INGRESO ->
-                    silo.currentTon + tons
-
-                MovementType.SALIDA ->
-                    silo.currentTon - tons
-            }
-
-            require(
-                nuevoNivel.isFinite() &&
-                        nuevoNivel >= 0 &&
-                        nuevoNivel <= silo.capacityTon
-            ) {
-                "La cantidad supera los límites del silo"
-            }
-
-            val siloActualizado = silo.copy(
-                currentTon = nuevoNivel,
-                updatedAt = DateUtils.now()
-            )
-
-            val movimientosActuales =
-                database.movementDao()
-                    .obtenerMovimientos()
-                    .first()
-
-            val ultimoId =
-                movimientosActuales.maxOfOrNull {
-                    it.id
-                } ?: 0L
-
-            check(ultimoId < Long.MAX_VALUE) {
-                "No se puede generar otro ID de movimiento"
-            }
-
-            val nuevoId = ultimoId + 1L
-
-            val movimiento = Movement(
-                id = nuevoId,
-                siloId = silo.id,
-                siloName = silo.name,
-                grain = grain,
-                type = type,
-                tons = tons,
-                date = date,
-                notes = notes
-            )
-
-            // Guardar el nivel actualizado del silo.
             database.siloDao().guardarSilo(
                 siloActualizado.toEntity()
             )
 
-            // Guardar el movimiento en el historial.
             database.movementDao().guardarMovimiento(
                 movimiento.toEntity()
             )
         }
 
-        // Actualizar las pantallas después de guardar.
         cargarDatosDesdeRoom()
 
         Log.d(
             "SiloRepository",
-            "Movimiento guardado correctamente en Room"
+            "Movimiento guardado en MySQL y Room: " +
+                    "${silo.name}, ${type.label}, $tons toneladas"
         )
     }
 
@@ -472,17 +530,16 @@ object SiloRepository {
             return
         }
 
-        val silosGuardados =
-            loadSilos() ?: SampleData.silos
+        val silosGuardados = loadSilos()
+            ?: SampleData.silos
 
-        val movimientosGuardados =
-            loadMovements()
-                ?: SampleData.initialMovements()
+        val movimientosGuardados = loadMovements()
+            ?: SampleData.initialMovements()
 
         database.withTransaction {
 
-            val cantidadSilos =
-                database.siloDao().contarSilos()
+            val cantidadSilos = database.siloDao()
+                .contarSilos()
 
             if (cantidadSilos == 0) {
 
@@ -519,7 +576,7 @@ object SiloRepository {
         )
     }
 
-    // ---------- Carga de datos desde Room ----------
+    // ---------- Cargar datos desde Room ----------
 
     private suspend fun cargarDatosDesdeRoom() {
 
@@ -529,13 +586,12 @@ object SiloRepository {
                 it.toDomain()
             }
 
-        val movimientosGuardados =
-            database.movementDao()
-                .obtenerMovimientos()
-                .first()
-                .map {
-                    it.toDomain()
-                }
+        val movimientosGuardados = database.movementDao()
+            .obtenerMovimientos()
+            .first()
+            .map {
+                it.toDomain()
+            }
 
         _silos.value = silosGuardados
         _movements.value = movimientosGuardados

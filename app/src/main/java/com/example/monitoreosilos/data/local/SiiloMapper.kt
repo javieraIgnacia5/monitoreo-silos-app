@@ -11,14 +11,7 @@ fun Silo.toEntity(): SiloEntity {
         farm = farm,
         capacityTon = capacityTon,
         currentTon = currentTon,
-        updatedAt = updatedAt,
-
-        // Guardar ubicación manual
-        locationAddress = locationAddress,
-
-        // Guardar coordenadas GPS
-        latitude = latitude,
-        longitude = longitude
+        updatedAt = updatedAt
     )
 }
 
@@ -30,13 +23,6 @@ fun SiloEntity.toDomain(): Silo {
         farm = farm,
         capacityTon = capacityTon,
         currentTon = currentTon,
-        updatedAt = updatedAt,
-
-        // Recuperar ubicación manual
-        locationAddress = locationAddress,
-
-        // Recuperar coordenadas GPS
-        latitude = latitude,
-        longitude = longitude
+        updatedAt = updatedAt
     )
 }

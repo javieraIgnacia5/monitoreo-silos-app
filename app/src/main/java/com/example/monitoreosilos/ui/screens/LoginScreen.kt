@@ -27,6 +27,7 @@ import androidx.compose.foundation.Image
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
     onRegisterClick: () -> Unit,
+    onPantallaNuevaClick: () -> Unit,
     viewModel: LoginViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -102,6 +103,12 @@ fun LoginScreen(
             TextButton(onClick = onRegisterClick) { Text("Regístrate", fontWeight = FontWeight.Bold) }
         }
     }
+    Button(
+        onClick = onPantallaNuevaClick
+    ) {
+        Text("Ver pantalla")
+    }
+
 }
 
 /** Botón redondo solo visual (el caso usa datos ficticios). */
@@ -120,4 +127,9 @@ private fun SocialButton(iconRes: Int, description: String) {
             modifier = Modifier.fillMaxSize()
         )
     }
+
+
+
+
+
 }

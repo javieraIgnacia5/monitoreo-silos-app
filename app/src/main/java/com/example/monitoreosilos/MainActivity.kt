@@ -7,6 +7,7 @@ import android.app.NotificationManager
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -16,6 +17,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import com.example.monitoreosilos.data.remote.RetrofitClient
 import com.example.monitoreosilos.data.repository.SiloRepository
 import com.example.monitoreosilos.data.repository.UserRepository
 import com.example.monitoreosilos.domain.model.SiloStatus
@@ -43,6 +45,26 @@ class MainActivity : ComponentActivity() {
         SiloRepository.init(this)
         UserRepository.init(this)
 
+        // Prueba de conexión con Spring Boot
+        lifecycleScope.launch {
+            try {
+                val silosServidor =
+                    RetrofitClient.siloApi.obtenerSilos()
+
+                Log.d(
+                    "PRUEBA_BACKEND",
+                    "Conexión exitosa. Silos recibidos: ${silosServidor.size}"
+                )
+
+            } catch (e: Exception) {
+                Log.e(
+                    "PRUEBA_BACKEND",
+                    "Error al conectar con Spring Boot",
+                    e
+                )
+            }
+        }
+
         // Cargar la preferencia de apariencia guardada
         ThemePreferences.init(this)
 
@@ -56,7 +78,6 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-
             val themeMode by ThemePreferences.themeMode.collectAsState()
 
             val darkTheme = when (themeMode) {
@@ -117,11 +138,8 @@ class MainActivity : ComponentActivity() {
         )
 
         lifecycleScope.launch {
-
             SiloRepository.silos.collect { silos ->
-
                 silos.forEach { silo ->
-
                     val clave = "critico_${silo.id}"
 
                     if (silo.status == SiloStatus.CRITICAL) {

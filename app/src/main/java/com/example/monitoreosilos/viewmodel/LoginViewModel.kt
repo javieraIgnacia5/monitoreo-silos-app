@@ -38,7 +38,13 @@ class LoginViewModel : ViewModel() {
     fun onSubmit() {
         val current = _state.value
         val emailError = AuthValidator.validateEmail(current.email)
+        //val emailError = if (current.email.isBlank()) {
+           // "El correo es obligatorio"
+        // } else {
+           // AuthValidator.validateEmail(current.email)
+        //}
         val formError = AuthValidator.validateLoginPassword(current.password)
+
         val formOk = emailError == null && formError == null
         val validAccount = formOk && UserRepository.login(current.email, current.password)
         _state.update {
@@ -51,3 +57,8 @@ class LoginViewModel : ViewModel() {
         }
     }
 }
+
+
+// Button( onClick = onAceptClick ){ Text("Aceptar" }
+
+

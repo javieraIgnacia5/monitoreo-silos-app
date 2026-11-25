@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Permiso para consultar el clima real -->
+    <!-- Permiso de Internet para conectar con Spring Boot -->
     <uses-permission
         android:name="android.permission.INTERNET" />
 
@@ -17,13 +17,14 @@
     <uses-permission
         android:name="android.permission.ACCESS_FINE_LOCATION" />
 
-    <!-- Cámara opcional: la aplicación también funciona sin ella -->
+    <!-- Cámara opcional -->
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
 
     <application
         android:allowBackup="true"
+        android:usesCleartextTraffic="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
