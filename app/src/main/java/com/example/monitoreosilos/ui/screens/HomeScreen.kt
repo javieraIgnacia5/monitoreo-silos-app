@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -32,15 +33,18 @@ import com.example.monitoreosilos.domain.model.SiloStatus
 import com.example.monitoreosilos.ui.components.CircleGauge
 import com.example.monitoreosilos.ui.components.color
 import com.example.monitoreosilos.viewmodel.SilosViewModel
+import com.example.monitoreosilos.viewmodel.WeatherViewModel
 
 @Composable
 fun HomeScreen(
     onSiloClick: (String) -> Unit,
     onSeeAll: () -> Unit,
     onBellClick: () -> Unit,
-    viewModel: SilosViewModel = viewModel()
+    viewModel: SilosViewModel = viewModel(),
+    weatherViewModel: WeatherViewModel = viewModel()
 ) {
     val silos by viewModel.silos.collectAsState()
+    val weatherState by weatherViewModel.uiState.collectAsState()
     val user by UserRepository.currentUser.collectAsState()
     val firstName = user?.name?.trim()?.split(" ")?.firstOrNull().orEmpty()
 
@@ -72,7 +76,7 @@ fun HomeScreen(
         }
         Spacer(Modifier.height(12.dp))
 
-        // Tarjeta del clima (dato ficticio)
+        // Tarjeta del clima (API Externa Open-Meteo vía Retrofit)
         Box(
             Modifier
                 .fillMaxWidth()
@@ -80,28 +84,55 @@ fun HomeScreen(
                 .background(Brush.horizontalGradient(listOf(Color(0xFF2C7A8C), Color(0xFF7FB6D6))))
                 .padding(16.dp)
         ) {
-            Column {
+            Column(Modifier.padding(end = 88.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.LocationOn, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    Text(" Concepción", color = Color.White, style = MaterialTheme.typography.bodySmall)
+                    Text(" Concepción (En vivo)", color = Color.White, style = MaterialTheme.typography.bodySmall)
                 }
                 Text(
-                    "18°",
+                    weatherState.temperature,
                     color = Color.White,
                     style = MaterialTheme.typography.displayMedium,
                     fontWeight = FontWeight.Bold
                 )
-                Text("Parcialmente nublado", color = Color.White, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    weatherState.description,
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Humedad: ${weatherState.humidity}  •  Viento: ${weatherState.windSpeed}",
+                    color = Color.White.copy(alpha = 0.9f),
+                    style = MaterialTheme.typography.labelSmall
+                )
             }
-            Box(Modifier.align(Alignment.CenterEnd).size(84.dp)) {
-                Icon(
-                    Icons.Filled.WbSunny, null, tint = Color(0xFFFFC83D),
-                    modifier = Modifier.size(52.dp).align(Alignment.TopEnd)
-                )
-                Icon(
-                    Icons.Filled.Cloud, null, tint = Color.White,
-                    modifier = Modifier.size(64.dp).align(Alignment.BottomStart)
-                )
+            Column(
+                Modifier.align(Alignment.CenterEnd),
+                horizontalAlignment = Alignment.End
+            ) {
+                IconButton(
+                    onClick = { weatherViewModel.fetchWeather() },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Refresh,
+                        contentDescription = "Actualizar clima",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Box(Modifier.size(72.dp)) {
+                    Icon(
+                        Icons.Filled.WbSunny, null, tint = Color(0xFFFFC83D),
+                        modifier = Modifier.size(44.dp).align(Alignment.TopEnd)
+                    )
+                    Icon(
+                        Icons.Filled.Cloud, null, tint = Color.White,
+                        modifier = Modifier.size(54.dp).align(Alignment.BottomStart)
+                    )
+                }
             }
         }
 
